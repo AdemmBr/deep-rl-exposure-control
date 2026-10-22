@@ -1,5 +1,4 @@
-"""Features de marche observees par SAC.
-"""
+"""Features de marche observees par SAC."""
 
 import numpy as np
 import pandas as pd
@@ -7,13 +6,6 @@ import pandas as pd
 
 class AgentFeatures:
     """Calcule et detient les features de marche de l'agent."""
-
-    # Liste explicite et ordonnee des features du state, dans l'ordre des colonnes
-    # de la matrice F. Elle seule decide de ce que l'agent observe : un attribut
-    # pose sur l'objet n'entre pas dans le state tant qu'il n'est pas nomme ici.
-    # L'inventaire precedent parcourait vars(self), donc un attribut public ajoute
-    # par megarde devenait une feature constante, standardisee en une colonne de
-    # zeros sans qu'aucune erreur ne soit levee.
     FEATURES = [
         "momentum_21",
         "momentum_63",
@@ -25,7 +17,6 @@ class AgentFeatures:
     ]
 
     def __init__(self, vol_window: int = 21, regime_window: int = 252):
-        """Memorise les fenetres de l'agent, distinctes de celles de la baseline."""
         self._vol_window = vol_window
         self._regime_window = regime_window
 
@@ -42,7 +33,6 @@ class AgentFeatures:
         daily_volatility = self._volatility.shift(1) / np.sqrt(252)
         self.return_z = (returns / daily_volatility).clip(-5.0, 5.0)
 
-        
         self.vol_regime = np.log(
             self._volatility
             / self._volatility.rolling(self._regime_window).median()
@@ -80,7 +70,6 @@ class AgentFeatures:
         )
 
     def _momentum(self, returns: pd.Series, window: int):
-        """Momentum normalise par le mouvement attendu sur la fenetre."""
         move = returns.rolling(window).sum()
         expected_move = self._volatility * np.sqrt(window / 252)
         return (move / expected_move).clip(-3.0, 3.0)
