@@ -9,7 +9,6 @@ class MarketDataLoader:
     """Telecharge une serie de prix et en derive les rendements logarithmiques."""
 
     def __init__(self, ticker: str, start: str, end: str | None = None):
-        """Memorise la serie demandee ; aucun appel reseau avant load()."""
         self.ticker = ticker
         self.start = start
         self.end = end
@@ -26,7 +25,6 @@ class MarketDataLoader:
         if isinstance(price, pd.DataFrame):
             price = price.iloc[:, 0]
 
-        
         data = price.dropna().rename("price").to_frame()
         data["ret"] = np.log(data["price"]).diff()
         data = data.dropna(subset=["ret"])
