@@ -1,20 +1,15 @@
-"""Chargement des series de marche utilisees par le projet."""
-
 import numpy as np
 import pandas as pd
 import yfinance as yf
 
 
 class MarketDataLoader:
-    """Telecharge une serie de prix et en derive les rendements logarithmiques."""
-
     def __init__(self, ticker: str, start: str, end: str | None = None):
         self.ticker = ticker
         self.start = start
         self.end = end
 
     def load(self):
-        """Retourne price et ret, les seances sans cotation retirees avant le diff."""
         price = yf.download(
             self.ticker,
             start=self.start,
@@ -25,6 +20,7 @@ class MarketDataLoader:
         if isinstance(price, pd.DataFrame):
             price = price.iloc[:, 0]
 
+        # dropna avant le diff pour ne pas sauter de rendement
         data = price.dropna().rename("price").to_frame()
         data["ret"] = np.log(data["price"]).diff()
         data = data.dropna(subset=["ret"])
