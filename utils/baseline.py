@@ -1,19 +1,8 @@
-"""Strategies de reference comparees au controle SAC.
-
-TrendVolatilityBaseline est la baseline du projet. Les trois autres viennent
-de la section 4.2 de Zhang, Zohren et Roberts (2019), arXiv:1911.10107 : Long
-Only, Sign(R) et MACD. Toutes partagent la meme mise a l'echelle (vol cible,
-borne d'exposition) ; seul le signal change.
-"""
-
 import numpy as np
 import pandas as pd
 
 
 class ExposureStrategy:
-    """Un signal dans [-1, 1], mis a l'echelle pour viser target_vol puis borne
-    a max_exposure. Les sous-classes n'ont que _signal a definir."""
-
     def __init__(
         self,
         vol_window: int = 21,
@@ -31,7 +20,6 @@ class ExposureStrategy:
         self.vol_method = vol_method
 
     def build(self, data: pd.DataFrame):
-        """Ajoute le signal, la volatilite et l'exposition de la strategie."""
         frame = data.copy()
         frame["signal"] = self._signal(frame)
         frame["forecast_vol"] = self._forecast_vol(frame)
@@ -39,11 +27,9 @@ class ExposureStrategy:
         return frame
 
     def exposure(self, data: pd.DataFrame):
-        """Juste la colonne d'exposition, sans collision de noms entre strategies."""
         return self.build(data)["w_base"]
 
     def _signal(self, frame: pd.DataFrame):
-        """Signal directionnel dans [-1, 1]. Seul point de variation."""
         raise NotImplementedError
 
     def _forecast_vol(self, frame: pd.DataFrame):
@@ -61,8 +47,6 @@ class ExposureStrategy:
 
 
 class TrendVolatilityBaseline(ExposureStrategy):
-    """Combine une tendance 63 jours et une cible de volatilite."""
-
     def __init__(self, trend_window: int = 63, **kwargs):
         super().__init__(**kwargs)
         self.trend_window = trend_window
@@ -72,22 +56,11 @@ class TrendVolatilityBaseline(ExposureStrategy):
 
 
 class LongOnly(ExposureStrategy):
-    """Long Only du papier : toujours long, mis a l'echelle par la vol.
-
-    Pas le Buy_and_hold du runner, qui lui ne se rebalance jamais.
-    """
-
     def _signal(self, frame: pd.DataFrame):
         return pd.Series(1.0, index=frame.index)
 
 
 class SignReturn(ExposureStrategy):
-    """Sign(R) du papier, equation 10 : A_t = sign(r_{t-252:t}).
-
-    Momentum classique, ne differe de la baseline du projet que par la fenetre
-    (une annee au lieu d'un trimestre).
-    """
-
     def __init__(self, lookback: int = 252, **kwargs):
         super().__init__(**kwargs)
         self.lookback = lookback
@@ -97,18 +70,8 @@ class SignReturn(ExposureStrategy):
 
 
 class MACDSignal(ExposureStrategy):
-    """Signal MACD de Baz et al., equations 3, 11 et 12 du papier.
-
-    Moyenne de trois MACD normalises (paires d'echelles), passee dans la
-    fonction de reponse phi. Deux points tranches via la source du papier
-    (Lim, Zohren et Roberts 2019, arXiv:1904.04912) : l'equation 12 ecrit une
-    somme mais designe une moyenne, et phi s'applique apres l'agregation.
-    """
-
-    # Paires (court, long) de l'equation 12.
+    # Baz et al., eq. 12
     TIMESCALES = ((8, 24), (16, 48), (32, 96))
-
-    # Normalisation de phi (0.89 dans le papier, borne la reponse a ~0.964).
     RESPONSE_SCALE = 0.89
 
     def _signal(self, frame: pd.DataFrame):
