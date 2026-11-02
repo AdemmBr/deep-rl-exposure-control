@@ -1,5 +1,3 @@
-"""Entrainement SAC et evaluation financiere en walk-forward."""
-
 import time
 
 import pandas as pd
@@ -12,8 +10,6 @@ from .scaling import StateScaler
 
 
 class WalkForwardRunner:
-    """Entraine SAC sur une fenetre d'annees civiles puis l'evalue sur la suivante."""
-
     def __init__(
         self,
         sac_config: dict,
@@ -58,8 +54,6 @@ class WalkForwardRunner:
         self.criterion_ = None
 
     def run(self, data: pd.DataFrame):
-        """Execute tous les entrainements et construit les resultats OOS."""
-
         torch.set_num_threads(1)
         splits = self._splits(data.index)
         fold_rows, paths = [], []
@@ -151,12 +145,10 @@ class WalkForwardRunner:
         return self
 
     def mean_decisions(self):
-        """Moyenne les decisions SAC entre les seeds."""
         columns = ["multiplier", "exposure", "baseline_exposure"]
         return self.decisions_.groupby(level=0)[columns].mean()
 
     def summary(self):
-        """Affiche le critere de decision, fixe avant de regarder les resultats."""
         folds = len(self.criterion_)
         for column in self.criterion_.select_dtypes("bool"):
             print(f"{column} : {int(self.criterion_[column].sum())}/{folds} folds")
