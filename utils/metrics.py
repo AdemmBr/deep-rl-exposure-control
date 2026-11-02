@@ -1,14 +1,9 @@
-"""Les neuf indicateurs de Zhang, Zohren et Roberts (2019), section 4.4,
-arXiv:1911.10107. Noms de colonnes repris du papier, pour comparer directement
-avec ses tables 2 et 3."""
-
 import numpy as np
 import pandas as pd
 
 
 class PaperMetrics:
-    """Calcule les neuf indicateurs du papier pour chaque colonne de rendements."""
-
+    # Zhang, Zohren et Roberts (2019), section 4.4
     COLUMNS = [
         "E(R)",
         "Std(R)",
@@ -35,7 +30,6 @@ class PaperMetrics:
         self.downside = downside
 
     def table(self, returns: pd.DataFrame | pd.Series):
-        """Retourne une ligne par strategie et une colonne par indicateur."""
         frame = returns.to_frame() if isinstance(returns, pd.Series) else returns
         root = np.sqrt(self.trading_days)
 
