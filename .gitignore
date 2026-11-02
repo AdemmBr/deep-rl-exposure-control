@@ -9,3 +9,4 @@ venv/
 
 # Sorties
 *.png
+.DS_Store
