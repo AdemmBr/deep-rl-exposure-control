@@ -1,5 +1,3 @@
-"""Environnement Gymnasium du controleur d'exposition."""
-
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -9,8 +7,6 @@ from .scaling import StateScaler
 
 
 class ExposureEnv(gym.Env):
-    """Applique les decisions SAC au portefeuille et calcule leur reward."""
-
     metadata = {"render_modes": []}
 
     def __init__(
@@ -45,7 +41,6 @@ class ExposureEnv(gym.Env):
         )
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):
-        """Ouvre un bloc d'evaluation, ou tire un episode d'entrainement."""
         super().reset(seed=seed)
         if self.episode_length is None:
             self._index = 0
@@ -62,7 +57,6 @@ class ExposureEnv(gym.Env):
         return self._get_observation(), {}
 
     def step(self, action: np.ndarray):
-        """Applique une action au rendement du jour suivant puis avance d'un jour."""
         multiplier = float(action[0])
         baseline_exposure = self.P[self._index]
         exposure = self._exposure(multiplier)
@@ -71,6 +65,7 @@ class ExposureEnv(gym.Env):
         market_pnl = exposure * asset_return
         net_return = market_pnl - self.cost_rate * turnover
         self._previous_exposure = exposure
+        # rend la reward concave en exposition, sinon SAC joue tout-ou-rien
         risk_penalty = self.lambda_risk * market_pnl**2
 
         info = {
