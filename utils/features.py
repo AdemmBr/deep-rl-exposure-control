@@ -1,11 +1,9 @@
-"""Features de marche observees par SAC."""
-
 import numpy as np
 import pandas as pd
 
 
 class AgentFeatures:
-    """Calcule et detient les features de marche de l'agent."""
+    # seules ces colonnes entrent dans le state
     FEATURES = [
         "momentum_21",
         "momentum_63",
@@ -21,7 +19,6 @@ class AgentFeatures:
         self._regime_window = regime_window
 
     def build(self, market_data: pd.DataFrame):
-        """Calcule les features depuis price/ret et retourne leur seul tableau."""
         returns = market_data["ret"]
         self._volatility = (
             returns.rolling(self._vol_window).std() * np.sqrt(252)
@@ -59,7 +56,6 @@ class AgentFeatures:
         return self.frame()
 
     def frame(self):
-        """Assemble les features declarees en un seul tableau."""
         missing = [name for name in self.FEATURES if not hasattr(self, name)]
         if missing:
             raise AttributeError(
