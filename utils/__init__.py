@@ -1,5 +1,3 @@
-"""Composants objet du projet SAC."""
-
 from .baseline import (
     ExposureStrategy,
     LongOnly,
