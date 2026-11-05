@@ -62,7 +62,7 @@ Pour voir si une représentation apprise pouvait corriger ce défaut, on a simul
 
 Le résultat est négatif. Aucune méthode ne retrouve les facteurs mieux que les features brutes, et enrichir l'état n'aide que pour la volatilité, la tendance restant trop bruitée. SAC garde donc les features d'origine.
 
-Le code est dans `extension/latent_representation.py` et tourne en une minute environ sur CPU. Par contre, il ne mesure que la récupération des facteurs. Pour des soucis de calcul, on n'a pas réentraîné SAC avec un état enrichi par ces latents. Vu ce que donnent les données synthétiques on ne s'attend pas à grand-chose, mais ça reste à tester.
+Sur 10 simulations, le gain de R² sur la volatilité quand on ajoute les latents aux features reste sous 0,01 (0,007 ± 0,007 pour TCL, 0,004 ± 0,004 pour iVAE, IC à 95 %), donc à la limite du significatif, et il est nul pour la tendance. Le code est dans `extension/latent_representation.py` et tourne en quatre minutes environ sur CPU. Par contre, il ne mesure que la récupération des facteurs. Pour des soucis de calcul, on n'a pas réentraîné SAC avec un état enrichi par ces latents. Vu ce que donnent les données synthétiques on ne s'attend pas à grand-chose, mais ça reste à tester.
 
 ### Code
 
@@ -148,7 +148,7 @@ To see whether a learned representation could fix this, we simulated returns fro
 
 The result is negative. No method recovers the factors better than the raw features, and enriching the state only helps for volatility, as the trend stays too noisy. SAC therefore keeps the original features.
 
-The code is in `extension/latent_representation.py` and runs in about a minute on CPU. It only measures factor recovery, though. Because of compute constraints, we didn't retrain SAC with a state enriched by these latents. Given the synthetic results we don't expect much, but it's still worth testing.
+Over 10 simulations, the R² gain on volatility from adding the latents to the features stays below 0.01 (0.007 ± 0.007 for TCL, 0.004 ± 0.004 for iVAE, 95% CI), so it's borderline significant, and there's no gain at all on the trend. The code is in `extension/latent_representation.py` and runs in about four minutes on CPU. It only measures factor recovery, though. Because of compute constraints, we didn't retrain SAC with a state enriched by these latents. Given the synthetic results we don't expect much, but it's still worth testing.
 
 ### Run
 
