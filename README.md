@@ -36,7 +36,23 @@ Les ambiguïtés du papier (somme ou moyenne des MACD, définition du downside r
 \- SAC améliore nettement la baseline (Sharpe 0,81 contre 0,50) et bat la baseline sur 4 années sur 6.\
 \- Face aux stratégies du papier, c'est plus serré : SAC ne bat *Long only* que 2 années sur 6.\
 \- SAC trade environ 6 fois plus que la baseline. Son avantage disparaît vers 4 bp de coût aller-retour.\
-\- Avec 3 seeds, l'écart entre seeds est du même ordre que l'écart avec la baseline : il en faudrait une quinzaine pour conclure.
+\- Ces chiffres sont sur 3 seeds, le modèle a été validé sur 10 (voir plus bas).
+
+### Choix et interprétation
+
+Les hyperparamètres ont été testés sur GPU, puis on n'a retenu que les plus significatifs pour refaire une validation croisée dessus. On s'est volontairement limités. Avec trop d'hyperparamètres, on finit par chercher de l'interprétation partout, et sur six folds il y a toujours une combinaison qui marche par hasard.
+
+La validation croisée a tourné sur 10 seeds et l'entraînement était stable sur chaque fold. La moyenne bougeait peu par rapport à 3 seeds, donc le notebook n'en garde que 3, ce qui fait une demi-heure de calcul sur CPU au lieu de deux heures. Un seed pris seul reste bruité (en 2025, le Sharpe va de 1,42 à 2,37 selon le seed), donc on regarde toujours la moyenne.
+
+Pour le réseau, le meilleur résultat était un 64x64 pour l'acteur et le critic. Petit défaut du projet, on n'a testé que des MLP et pas d'architectures vraiment différentes comme un LSTM ou un transformer.
+
+Le paramètre qui a le plus joué, c'est la fenêtre de momentum de la baseline, et c'est assez logique. Avec une fenêtre plus courte le signal réagit plus vite, mais il réagit aussi au bruit. Il se retourne plus souvent, la stratégie paie plus de coûts et se fait prendre à contre-pied, donc la performance se dégrade. 63 jours est un bon compromis.
+
+Gamma à 0,96 correspond à un horizon d'environ 25 jours, à peu près un mois de bourse. Ça laisse à l'agent le temps de voir l'effet d'une tendance sans aller chercher trop loin. `lambda_risk = 2`, en revanche, a été fixé à partir d'un rendement moyen estimé ex post, et ce n'est pas très propre.
+
+Quand on regarde ce que fait l'agent, le multiplicateur moyen descend sous 1 les années de crise (0,73 en 2020, 0,55 en 2022) et passe à 1,36 en 2021, année calme et haussière. En gros, SAC apprend surtout à couper l'exposition quand le marché s'agite, plus qu'à retoucher la baseline au jour le jour.
+
+On a aussi comparé avec PPO, qui n'est pas dans ce repo. Sa performance se dégradait sur les derniers folds, et on a un peu de mal à expliquer cette différence avec SAC. Notre meilleure hypothèse, c'est l'entropie. SAC optimise la récompense plus un bonus d'entropie réglé automatiquement, donc sa politique reste aléatoire pendant l'entraînement et continue d'explorer tout l'intervalle [0, A_max]. PPO n'a pas de bonus d'entropie par défaut dans Stable-Baselines3, et comme il est on-policy il jette ses données après chaque mise à jour. Sur un millier de jours de train, sa politique finit par coller à ce qui marchait dans la fenêtre d'entraînement, et ça tient moins bien quand le régime change.
 
 ### Extension : représentation latente de l'état
 
@@ -46,10 +62,14 @@ Pour voir si une représentation apprise pouvait corriger ce défaut, on a simul
 
 Le résultat est négatif. Aucune méthode ne retrouve les facteurs mieux que les features brutes, et enrichir l'état n'aide que pour la volatilité, la tendance restant trop bruitée. SAC garde donc les features d'origine.
 
+Le code est dans `extension/latent_representation.py` et tourne en une minute environ sur CPU. Par contre, il ne mesure que la récupération des facteurs. Pour des soucis de calcul, on n'a pas réentraîné SAC avec un état enrichi par ces latents. Vu ce que donnent les données synthétiques on ne s'attend pas à grand-chose, mais ça reste à tester.
+
 ### Code
 
 ```
 SAC_control_project.ipynb   données, entraînement, évaluation
+extension/
+  latent_representation.py   facteurs synthétiques, β-TCVAE, TCL, iVAE
 utils/
   market_data.py   prix (yfinance)
   features.py      observations de l'agent
@@ -65,6 +85,7 @@ git clone https://github.com/AdemmBr/deep-rl-exposure-control.git
 cd deep-rl-exposure-control
 pip install -r requirements.txt
 jupyter lab SAC_control_project.ipynb
+python extension/latent_representation.py
 ```
 
 ## English
@@ -101,7 +122,23 @@ Ambiguities in the paper (sum vs. mean of MACD signals, downside risk definition
 \- SAC clearly improves on the baseline (Sharpe 0.81 vs 0.50) and beats it in 4 of 6 years.\
 \- Against the paper's strategies it's closer: SAC beats *Long only* in only 2 of 6 years.\
 \- SAC trades about 6 times more than the baseline. Its edge disappears around 4 bp round-trip cost.\
-\- With 3 seeds, the spread between seeds is about as large as the gap to the baseline: around 15 would be needed to conclude.
+\- These figures are on 3 seeds, the model was validated on 10 (see below).
+
+### Choices and interpretation
+
+Hyperparameters were tested on GPU, and we only kept the most significant ones to run a cross-validation on. We deliberately limited ourselves. With too many hyperparameters you end up looking for an interpretation everywhere, and over six folds there's always some combination that works by chance.
+
+The cross-validation ran on 10 seeds and training was stable on every fold. The average barely moved compared with 3 seeds, so the notebook only keeps 3, which means half an hour of compute on CPU instead of two hours. A single seed is still noisy (in 2025 the Sharpe goes from 1.42 to 2.37 depending on the seed), so we always look at the average.
+
+For the network, the best result came from a 64x64 actor and critic. A small flaw of the project is that we only tried MLPs, not genuinely different architectures like an LSTM or a transformer.
+
+The parameter that mattered most is the baseline's momentum window, which makes sense. With a shorter window the signal reacts faster, but it also reacts to noise. It flips more often, the strategy pays more costs and gets whipsawed, so performance degrades. 63 days is a good compromise.
+
+A gamma of 0.96 means a horizon of about 25 days, roughly one trading month. That gives the agent time to see a trend play out without looking too far ahead. `lambda_risk = 2`, on the other hand, was set from a mean return estimated ex post, which isn't very clean.
+
+Looking at what the agent actually does, the average multiplier drops below 1 in crisis years (0.73 in 2020, 0.55 in 2022) and goes up to 1.36 in 2021, a calm bull year. Basically, SAC mostly learns to cut exposure when the market gets rough, rather than tweaking the baseline day to day.
+
+We also compared against PPO, which isn't in this repo. Its performance degraded on the last folds, and we struggle a bit to explain the difference with SAC. Our best guess is entropy. SAC optimises reward plus an automatically tuned entropy bonus, so its policy stays stochastic during training and keeps exploring the whole [0, A_max] range. PPO has no entropy bonus by default in Stable-Baselines3, and being on-policy it throws its data away after each update. Over a thousand or so training days, its policy ends up sticking to what worked in the training window, and that holds up less well when the regime changes.
 
 ### Extension: latent state representation
 
@@ -111,6 +148,8 @@ To see whether a learned representation could fix this, we simulated returns fro
 
 The result is negative. No method recovers the factors better than the raw features, and enriching the state only helps for volatility, as the trend stays too noisy. SAC therefore keeps the original features.
 
+The code is in `extension/latent_representation.py` and runs in about a minute on CPU. It only measures factor recovery, though. Because of compute constraints, we didn't retrain SAC with a state enriched by these latents. Given the synthetic results we don't expect much, but it's still worth testing.
+
 ### Run
 
 ```bash
@@ -118,6 +157,7 @@ git clone https://github.com/AdemmBr/deep-rl-exposure-control.git
 cd deep-rl-exposure-control
 pip install -r requirements.txt
 jupyter lab SAC_control_project.ipynb
+python extension/latent_representation.py
 ```
 
 ## References
