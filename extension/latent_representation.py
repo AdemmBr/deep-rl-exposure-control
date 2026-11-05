@@ -1,5 +1,5 @@
-import importlib.util
 import math
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -7,12 +7,8 @@ import pandas as pd
 import torch
 import torch.nn as nn
 
-# features.py seul, pour ne pas tirer yfinance et SB3 via utils/__init__.py
-_path = Path(__file__).resolve().parents[1] / "utils" / "features.py"
-_spec = importlib.util.spec_from_file_location("features", _path)
-_module = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_module)
-AgentFeatures = _module.AgentFeatures
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+from utils import AgentFeatures
 
 N_DAYS = 20_000
 SEGMENT = 63
@@ -30,11 +26,9 @@ def simulate(seed: int):
         log_vol[t] = 0.98 * log_vol[t - 1] + 0.40 * math.sqrt(1 - 0.98**2) * rng.normal()
     sigma = 0.16 * np.exp(log_vol) / math.sqrt(252)
     returns = trend / 252 + sigma * rng.normal(size=N_DAYS)
-
     index = pd.bdate_range("1950-01-02", periods=N_DAYS)
     market = pd.DataFrame({"ret": returns, "price": np.exp(np.cumsum(returns))}, index)
     factors = pd.DataFrame({"trend": trend, "log_vol": log_vol}, index)
-
     features = AgentFeatures().build(market).dropna()
     factors = factors.loc[features.index]
     segments = np.arange(len(features)) // SEGMENT
@@ -67,7 +61,6 @@ class VAE(nn.Module):
         mu, logvar = self.encode(x)
         z = mu + torch.randn_like(mu) * (0.5 * logvar).exp()
         recon = 0.5 * ((self.decoder(z) - x) ** 2).sum(1)
-
         if self.prior is not None:
             p_mu, p_logvar = self.prior(u).chunk(2, dim=1)
             kl = 0.5 * (
@@ -75,7 +68,6 @@ class VAE(nn.Module):
                 + (logvar.exp() + (mu - p_mu) ** 2) / p_logvar.exp() - 1
             ).sum(1)
             return (recon + kl).mean()
-
         # decomposition de Chen et al., estimateur minibatch-weighted
         batch = x.shape[0]
         pairs = log_normal(z[:, None], mu[None], logvar[None])
@@ -151,7 +143,6 @@ def run(seed=0):
     f_train, f_test = factors[:split], factors[split:]
     u_train = segments[:split]
     n_seg = int(u_train.max()) + 1
-
     latents = {"PCA": pca(x_train, x_test)}
     torch.manual_seed(seed)
     models = {
@@ -163,22 +154,26 @@ def run(seed=0):
         fit(model, x_train, u_train, seed)
         with torch.no_grad():
             latents[name] = tuple(model.latent(torch.tensor(m)).numpy() for m in (x_train, x_test))
-
-    rows = {"features brutes (7)": best_match(x_test, f_test) + linear_r2(x_train, f_train, x_test, f_test) + [np.nan] * 2}
+    raw_r2 = linear_r2(x_train, f_train, x_test, f_test)
+    rows = {"features brutes (7)": best_match(x_test, f_test) + raw_r2 + [np.nan] * 2}
     for name, (z_train, z_test) in latents.items():
         enriched = linear_r2(np.column_stack([x_train, z_train]), f_train,
                              np.column_stack([x_test, z_test]), f_test)
-        rows[name] = best_match(z_test, f_test) + linear_r2(z_train, f_train, z_test, f_test) + enriched
-
-    columns = [f"|rho| {f}" for f in FACTORS] + [f"R2 {f}" for f in FACTORS] + [f"R2 brut+z {f}" for f in FACTORS]
+        gain = [e - r for e, r in zip(enriched, raw_r2)]
+        rows[name] = best_match(z_test, f_test) + linear_r2(z_train, f_train, z_test, f_test) + gain
+    columns = [f"|rho| {f}" for f in FACTORS] + [f"R2 {f}" for f in FACTORS] + [f"gain R2 brut+z {f}" for f in FACTORS]
     return pd.DataFrame.from_dict(rows, orient="index", columns=columns)
 
 
 if __name__ == "__main__":
     torch.set_num_threads(1)
-    results = [run(seed) for seed in (0, 1, 2)]
-    table = sum(results) / len(results)
+    results = [run(seed) for seed in range(10)]
+    stacked = pd.concat(results)
+    mean = stacked.groupby(level=0, sort=False).mean()
+    half_width = 2.26 * stacked.groupby(level=0, sort=False).std() / np.sqrt(len(results))
     pd.set_option("display.width", 200)
     pd.set_option("display.max_columns", None)
-    print("Moyenne sur 3 simulations, echantillon de test (30 % final)\n")
-    print(table.round(3))
+    print(f"Moyenne sur {len(results)} simulations, echantillon de test (30 % final)")
+    print(mean.round(3))
+    print("Demi-largeur de l'IC a 95 %")
+    print(half_width.round(3))
